@@ -1,6 +1,7 @@
 *zoo*
 *.DS_Store
 *processed*
+notebooks/_imports.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
