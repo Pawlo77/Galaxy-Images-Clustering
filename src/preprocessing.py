@@ -1,6 +1,8 @@
+import multiprocessing
 import os
 import sys
 import warnings
+from functools import partial
 
 import cv2
 import numpy as np
@@ -131,8 +133,7 @@ def extract_and_resize_2(
         (center_x, center_y), (w, h), angle = rect
     else:
         center_x, center_y = width // 2, height // 2
-        angle = 0
-        w = h = reset_size
+        w = h = angle = 0
 
     if plot_box:
         cv2.circle(image, (int(center_x), int(center_y)), 5, (0, 255, 0), -1)
@@ -202,6 +203,17 @@ def preprocess_image_2(
     )
 
 
+def _process_helper(img_id, image_directory, output_directory):
+    filepath = os.path.join(image_directory, f"{img_id}.jpg")
+    image = cv2.imread(filepath)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    image = preprocess_image_2(
+        image, sigma=4, resize_factor=1.5, target_size=(196, 196)
+    )
+    filepath = os.path.join(output_directory, f"{img_id}.jpg")
+    cv2.imwrite(filepath, image)
+
+
 def _process(name):
     root_dir = os.path.abspath(os.path.join(__file__, "..", "..", "data"))
     mapping = pd.read_csv(os.path.join(root_dir, name))
@@ -210,15 +222,15 @@ def _process(name):
 
     os.makedirs(output_directory, exist_ok=True)
 
-    for img_id in mapping["asset_id"]:
-        filepath = os.path.join(image_directory, f"{img_id}.jpg")
-        image = cv2.imread(filepath)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        image = preprocess_image_2(
-            image, sigma=4, resize_factor=1.5, target_size=(196, 196)
-        )
-        filepath = os.path.join(output_directory, f"{img_id}.jpg")
-        cv2.imwrite(filepath, image)
+    helper = partial(
+        _process_helper,
+        image_directory=image_directory,
+        output_directory=output_directory,
+    )
+    pool = multiprocessing.Pool()
+    pool.map(helper, mapping["asset_id"])
+    pool.close()
+    pool.join()
 
 
 def _main():
