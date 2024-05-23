@@ -20,7 +20,7 @@ def load_images(filepaths):
     return np.stack(images)
 
 
-def show_images(images, titles=None, ncols=4, figsize=None):
+def show_images(images, titles=None, ncols=4, figsize=None, **kwargs):
     nrows = len(images) // ncols
     if len(images) % ncols != 0:
         nrows += 1
@@ -36,7 +36,7 @@ def show_images(images, titles=None, ncols=4, figsize=None):
         ax.axis("off")
 
     for i, (image, ax) in enumerate(zip(images, axes)):
-        ax.imshow(image)
+        ax.imshow(image, **kwargs)
         if titles is not None:
             ax.set_title(titles[i])
 

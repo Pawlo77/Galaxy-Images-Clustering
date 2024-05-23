@@ -179,7 +179,6 @@ def extract_and_resize_2(
 def preprocess_image_2(
     image,
     sigma=4,
-    resize_factor=2,
     target_size=(128, 128),
     plot=False,
     return_size=False,
@@ -207,9 +206,7 @@ def _process_helper(img_id, image_directory, output_directory):
     filepath = os.path.join(image_directory, f"{img_id}.jpg")
     image = cv2.imread(filepath)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    image = preprocess_image_2(
-        image, sigma=4, resize_factor=1.5, target_size=(196, 196)
-    )
+    image = preprocess_image_2(image, sigma=4, target_size=(150, 150))
     filepath = os.path.join(output_directory, f"{img_id}.jpg")
     cv2.imwrite(filepath, image)
 
