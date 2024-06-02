@@ -1,93 +1,100 @@
 import os
 
 import pandas as pd
-import torch
-from PIL import Image
-from torch.utils.data import Dataset
-from torchvision import transforms
+import tensorflow as tf
 
-MEAN = [0.0967, 0.1195, 0.1397]
-STD = [0.1158, 0.1421, 0.1677]
-
-
-class CustomImageDataset(Dataset):
-    def __init__(
-        self,
-        mapping,
-        root_dir=os.path.join("..", "data"),
-        files_dir=None,
-        transform=None,
-    ):
-        self.root_dir = root_dir
-        if files_dir is None:
-            files_dir = os.path.join(root_dir, "processed")
-        self.files_dir = files_dir
-
-        self.mapping = pd.read_csv(os.path.join(root_dir, mapping))
-        self.transform = transform
-
-        self.image_paths = [
-            os.path.join(self.files_dir, f"{img_id}.jpg")
-            for img_id in self.mapping["asset_id"]
-        ]
-
-    def __len__(self):
-        return len(self.image_paths)
-
-    def __getitem__(self, idx):
-        img_path = self.image_paths[idx]
-        image = Image.open(img_path).convert("RGB")
-
-        image = transforms.ToTensor()(image)
-        if self.transform:
-            image = self.transform(image)
-
-        return image
-
-
-def compute_mean_std(dataloader):
-    mean = 0.0
-    std = 0.0
-    for images in dataloader:
-        batch_samples = images.size(0)
-        images = images.view(batch_samples, images.size(1), -1)
-        mean += images.mean(2).sum(0)
-        std += images.std(2).sum(0)
-
-    mean /= len(dataloader.dataset)
-    std /= len(dataloader.dataset)
-    return mean, std
+_MEAN = [24.008411, 30.535658, 34.82993]
+_STD = [32.271805, 38.59381, 45.358646]
+MEAN = tf.constant(_MEAN, shape=(1, 1, 3), dtype=tf.float32)
+STD = tf.constant(_STD, shape=(1, 1, 3), dtype=tf.float32)
 
 
 def get_transform(size=None, train=False):
-    transformers = [
-        transforms.Normalize(mean=MEAN, std=STD),
-    ]
+    def transform(image):
+        # Normalize the image
+        image = tf.cast(image, tf.float32) / 255.0
+        image = (image - MEAN) / STD
 
-    if train:
-        transformers.extend(
-            [
-                transforms.RandomApply(
-                    [
-                        transforms.ColorJitter(
-                            brightness=0.5, contrast=0.5, saturation=0.5, hue=0.1
-                        )
-                    ],
-                    p=0.8,
-                ),
-                transforms.RandomGrayscale(p=0.2),
-                transforms.RandomRotation(degrees=(-180, 180)),
-            ]
+        if train:
+            # Apply color jitter
+            def color_jitter(image):
+                image = tf.image.random_brightness(image, max_delta=0.5)
+                image = tf.image.random_contrast(image, lower=0.5, upper=1.5)
+                image = tf.image.random_saturation(image, lower=0.5, upper=1.5)
+                image = tf.image.random_hue(image, max_delta=0.1)
+                return image
+
+            image = tf.cond(
+                tf.random.uniform([]) < 0.8, lambda: color_jitter(image), lambda: image
+            )
+
+            # Apply random rotation
+            angle = tf.random.uniform([], minval=-180, maxval=180, dtype=tf.float32)
+            radians = angle * 3.141592653589793 / 180.0
+            image = tf.image.rot90(image, k=tf.cast(angle / 90, tf.int32))
+
+        if size is not None:
+            image = tf.image.resize(image, [size, size])
+
+        return image
+
+    return transform
+
+
+def load_image_from_asset_id(asset_id, files_dir, transform=None):
+    image_path = tf.strings.join(
+        [files_dir, "/", tf.strings.as_string(asset_id), ".jpg"]
+    )
+
+    image = tf.io.read_file(image_path)
+    image = tf.image.decode_jpeg(image, channels=3)
+    if transform:
+        image = transform(image)
+    return image
+
+
+# Create a TensorFlow dataset from the mapping file
+def create_dataset_from_mapping(
+    mapping_file,
+    root_dir=os.path.join(os.path.dirname(__file__), "..", "data"),
+    files_dir=None,
+    transform=None,
+):
+    if files_dir is None:
+        files_dir = os.path.abspath(os.path.join(root_dir, "processed"))
+
+    mapping = pd.read_csv(os.path.join(root_dir, mapping_file))
+    asset_ids = mapping["asset_id"].tolist()
+
+    dataset = tf.data.Dataset.from_tensor_slices(asset_ids)
+    dataset = dataset.map(
+        lambda asset_id: load_image_from_asset_id(
+            asset_id, files_dir, transform=transform
+        )
+    )
+    return dataset
+
+
+def compute_mean_std(dataset):
+    mean_sum = tf.zeros((3,), dtype=tf.float32)
+    sq_diff_sum = tf.zeros((3,), dtype=tf.float32)
+    total_images = tf.constant(0, dtype=tf.float32)
+
+    for images in dataset:
+        batch_size = tf.cast(tf.shape(images)[0], tf.float32)
+        total_images += batch_size
+        images = tf.cast(images, tf.float32)
+        mean_sum += tf.reduce_sum(tf.reduce_mean(images, axis=[1, 2]), axis=0)
+        sq_diff_sum += tf.reduce_sum(
+            tf.reduce_mean(tf.square(images), axis=[1, 2]), axis=0
         )
 
-    if size is not None:
-        transformers.append(transforms.Resize((size, size)))
+    mean = mean_sum / total_images
+    std = tf.sqrt(sq_diff_sum / total_images - tf.square(mean))
 
-    return transforms.Compose(transformers)
+    return mean, std
 
 
 def reverse_transform(tensor):
-    mean = torch.tensor(MEAN).view(3, 1, 1)
-    std = torch.tensor(STD).view(3, 1, 1)
-    tensor = tensor * std + mean
+    tensor = tensor * STD + MEAN
     return tensor.numpy()[0]
