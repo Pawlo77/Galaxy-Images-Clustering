@@ -13,9 +13,9 @@ CV project - clustering low-res images, part of IAD at WUT
       python src/preprocessing.py --name train_mapping.csv
       python src/preprocessing.py --name validation_mapping.csv
       python src/preprocessing.py --name test_mapping.csv
-      python src/features.py --name train_mapping.csv
-      python src/features.py --name validation_mapping.csv
-      python src/features.py --name test_mapping.csv
+      python src/features_efficientnet.py --name train_mapping.csv
+      python src/features_efficientnet.py --name validation_mapping.csv
+      python src/features_efficientnet.py --name test_mapping.csv
    ```
 4. Run [train](./notebooks/features.ipynb) notebook to train feature extractor architecture.
 
