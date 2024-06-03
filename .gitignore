@@ -3,6 +3,9 @@
 *processed*
 *data/features*
 notebooks/_imports.py
+*.npy
+*.keras
+notebooks/logs*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
