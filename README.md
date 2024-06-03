@@ -8,11 +8,14 @@ CV project - clustering low-res images, part of IAD at WUT
       pip install -r requirements.txt
    ```
 2. Run [eda](./notebooks/eda.ipynb) notebook to see the data distribution and some examples of images.3
-3. Data preprocessing:
+3. Data preprocessing and features extraction using EfficientNet:
     ```bash
       python src/preprocessing.py --name train_mapping.csv
       python src/preprocessing.py --name validation_mapping.csv
       python src/preprocessing.py --name test_mapping.csv
+      python src/features.py --name train_mapping.csv
+      python src/features.py --name validation_mapping.csv
+      python src/features.py --name test_mapping.csv
    ```
 4. Run [train](./notebooks/features.ipynb) notebook to train feature extractor architecture.
 
