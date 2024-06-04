@@ -220,3 +220,33 @@ def create_dataset_from_mapping(
         )
 
     return dataset, len(asset_ids)
+
+
+def load_image_from_asset_id(asset_id, files_dir):
+    image_path = tf.strings.join(
+        [files_dir, "/", tf.strings.as_string(asset_id), ".jpg"]
+    )
+
+    image = tf.io.read_file(image_path)
+    image = tf.image.decode_jpeg(image, channels=3)
+    image = tf.image.resize(image, [224, 224], method="bilinear")
+    return image, asset_id
+
+
+# Create a TensorFlow dataset from the mapping file
+def create_dataset_from_mapping_vgg(
+    mapping_file,
+    root_dir=os.path.join(os.path.dirname(__file__), "..", "data"),
+    files_dir=None,
+):
+    if files_dir is None:
+        files_dir = os.path.abspath(os.path.join(root_dir, "processed"))
+
+    mapping = pd.read_csv(os.path.join(root_dir, mapping_file))
+    asset_ids = mapping["asset_id"].tolist()
+
+    dataset = tf.data.Dataset.from_tensor_slices(asset_ids)
+    dataset = dataset.map(
+        lambda asset_id: load_image_from_asset_id(asset_id, files_dir)
+    )
+    return dataset
